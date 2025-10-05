@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Todo App — Vanilla JS</title>
+  <style>
+    :root{
+      --bg: #f7f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #6366f1; /* indigo */
+      --accent-contrast: #fff;
+      --success: #10b981;
+      --danger: #ef4444;
+      --radius: 12px;
+      --glass: rgba(255,255,255,0.6);
+    }
+    [data-theme='dark']{ --bg:#0f1724; --card:#0b1220; --text:#e6eef8; --muted:#9aa6bd; --glass: rgba(255,255,255,0.04); }
+
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;color:var(--text);background:linear-gradient(180deg,var(--bg),#edf2ff);min-height:100vh}
+    .app{display:grid;grid-template-columns:260px 1fr;gap:20px;padding:22px}
+    .sidebar{background:var(--card);padding:16px;border-radius:var(--radius);box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    .brand{font-weight:700;display:flex;align-items:center;gap:10px}
+    .brand .dot{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+    .nav{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+    .nav button{background:transparent;border:none;padding:8px;border-radius:8px;text-align:left;cursor:pointer;color:var(--muted)}
+    .nav button.active{background:linear-gradient(90deg,var(--accent)20%,transparent);color:var(--text)}
+    .content{padding:16px}
+    .card{background:var(--card);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+
+    /* header */
+    .header{display:flex;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .search{flex:1}
+    input[type="text"],textarea,select{width:100%;padding:8px;border-radius:8px;border:1px solid #e6e9ef;background:transparent}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+
+    /* todo list */
+    .todos{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+    .todo{display:flex;justify-content:space-between;gap:12px;padding:12px;border-radius:10px;border:1px solid rgba(0,0,0,0.04);align-items:flex-start}
+    .todo .left{flex:1}
+    .todo h4{margin:0 0 6px 0}
+    .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap}
+    .chip{padding:6px 8px;border-radius:999px;background:var(--glass);font-size:12px}
+    .status{padding:6px 10px;border-radius:9px;font-weight:600}
+    .status.pending{background:#f3f4f6;color:#1f2937}
+    .status.progress{background:linear-gradient(90deg,#fde68a,#fb923c);color:#1f2937}
+    .status.done{background:linear-gradient(90deg,#bbf7d0,#10b981);color:#064e3b}
+
+    .actions{display:flex;gap:8px}
+    .btn{padding:8px 10px;border-radius:8px;border:none;cursor:pointer}
+
+    /* forms */
+    .form-grid{display:grid;grid-template-columns:1fr 260px;gap:12px}
+    .subtasks{margin-top:8px}
+    .subtask{display:flex;gap:8px;align-items:center;padding:6px;border-radius:6px}
+    .subtask input[type='checkbox']{transform:scale(1.1)}
+
+    /* small screens */
+    @media (max-width:900px){.app{grid-template-columns:1fr;}.form-grid{grid-template-columns:1fr}}
+
+    footer{margin-top:14px;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar card">
+      <div class="brand"><div class="dot"></div><div>QuickTodo</div></div>
+      <nav class="nav" id="viewNav">
+        <button data-view="todos" class="active">Todos</button>
+        <button data-view="tags">Tags</button>
+        <button data-view="categories">Categories</button>
+        <button data-view="settings">Settings</button>
+      </nav>
+      <footer>Saved locally in your browser • Lightweight</footer>
+    </aside>
+
+    <main class="content">
+      <!-- TODOS VIEW -->
+      <section id="view-todos" class="view">
+        <div class="header">
+          <div style="flex:1">
+            <label>New todo</label>
+            <div style="display:flex;gap:8px">
+              <input id="newTitle" type="text" placeholder="e.g. Build UI for QuickTodo" />
+              <button id="addTodoBtn" class="btn" style="background:var(--accent);color:var(--accent-contrast);">Add</button>
+            </div>
+          </div>
+          <div style="width:320px">
+            <label>Filter by status</label>
+            <select id="filterStatus">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <div class="card">
+              <h3>Todos</h3>
+              <div id="todosList" class="todos"></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>Details</h3>
+              <div id="detailPane">Select a todo to view or edit details</div>
+            </div>
+            <div style="height:12px"></div>
+            <div class="card">
+              <h4>Create quick tag</h4>
+              <input id="quickTagName" placeholder="tag name" />
+              <div style="height:8px"></div>
+              <button id="createQuickTag" class="btn">Create Tag</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAGS VIEW -->
+      <section id="view-tags" class="view" style="display:none">
+        <div class="card">
+          <h3>Tags</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="tagName" placeholder="New tag" />
+            <button id="createTag" class="btn">Create</button>
+          </div>
+          <div id="tagsList"></div>
+        </div>
+      </section>
+
+      <!-- CATEGORIES VIEW -->
+      <section id="view-categories" class="view" style="display:none">
+        <div class="card">
+          <h3>Categories</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <input id="categoryName" placeholder="New category" />
+            <button id="createCategory" class="btn">Create</button>
+          </div>
+          <div id="categoriesList"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS VIEW -->
+      <section id="view-settings" class="view" style="display:none">
+        <div class="card">
+          <h3>Settings</h3>
+          <div style="display:flex;gap:12px;align-items:center;margin-top:8px">
+            <label>Theme</label>
+            <select id="themeSelect">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+          </div>
+
+          <div style="margin-top:12px">
+            <label>Accent color</label>
+            <input id="accentColor" type="color" value="#6366f1" />
+          </div>
+
+          <div style="margin-top:12px">
+            <button id="saveSettings" class="btn">Save Settings</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    /* Simple state stored in localStorage */
+    const LS_KEY = 'quicktodo_v1'
+    const defaultState = {
+      todos:[], tags:[{id: 't1', name:'work'},{id:'t2',name:'personal'}], categories:[{id:'c1',name:'home'}],
+      settings:{theme:'light',accent:'#6366f1'}
+    }
+
+    const uid = (p=>p+Math.random().toString(36).slice(2,9))
+
+    function loadState(){
+      try{const s=JSON.parse(localStorage.getItem(LS_KEY));return s||defaultState}catch(e){return defaultState}
+    }
+    function saveState(){localStorage.setItem(LS_KEY,JSON.stringify(state))}
+
+    const state = loadState()
+
+    // --- UI helpers
+    function $(sel, root=document) {return root.querySelector(sel)}
+    function $all(sel, root=document){return Array.from(root.querySelectorAll(sel))}
+
+    // --- Views nav
+    const viewButtons = $all('#viewNav button')
+    viewButtons.forEach(b=>b.addEventListener('click',()=>{
+      viewButtons.forEach(x=>x.classList.remove('active'))
+      b.classList.add('active')
+      const view = b.dataset.view
+      document.querySelectorAll('.view').forEach(v=>v.style.display='none')
+      document.getElementById('view-'+view).style.display='block'
+    }))
+
+    // --- Todos list rendering
+    const todosList = $('#todosList')
+    const detailPane = $('#detailPane')
+
+    function renderTodos(){
+      const filter = $('#filterStatus').value
+      todosList.innerHTML=''
+      const items = state.todos.filter(t=> filter==='all' ? true : t.status===filter)
+      if(items.length===0){ todosList.innerHTML='<div style="padding:14px;color:var(--muted)">No todos yet</div>'; return }
+      items.forEach(t=>{
+        const el = document.createElement('div'); el.className='todo'
+        const left = document.createElement('div'); left.className='left'
+        const h = document.createElement('h4'); h.textContent = t.title
+        const p = document.createElement('div'); p.className='meta'
+        if(t.category) p.appendChild(chip(t.category))
+        t.tags && t.tags.forEach(tag=>p.appendChild(chip(tag)))
+        const subCount = t.subtasks ? t.subtasks.filter(s=>!s.done).length : 0
+        p.appendChild(textEl(subCount+' subtasks'))
+        left.appendChild(h); left.appendChild(p)
+        const right = document.createElement('div'); right.className='actions'
+        const status = document.createElement('div'); status.className='status '+t.status; status.textContent = t.status
+        const open = document.createElement('button'); open.className='btn'; open.textContent='Open'; open.addEventListener('click',()=>openDetail(t.id))
+        const del = document.createElement('button'); del.className='btn'; del.textContent='Delete'; del.addEventListener('click',()=>{ if(confirm('Delete this todo?')){ state.todos = state.todos.filter(x=>x.id!==t.id); saveState(); renderTodos(); detailPane.innerHTML='Select a todo to view or edit details' }})
+        right.appendChild(status); right.appendChild(open); right.appendChild(del)
+        el.appendChild(left); el.appendChild(right)
+        todosList.appendChild(el)
+      })
+    }
+
+    function chip(text){ const d=document.createElement('span'); d.className='chip'; d.textContent=text; return d }
+    function textEl(t){ const s=document.createElement('span'); s.style.color='var(--muted)'; s.style.fontSize='12px'; s.textContent=t; return s }
+
+    // --- Detail view
+    let currentOpen = null
+    function openDetail(id){
+      currentOpen = state.todos.find(t=>t.id===id)
+      if(!currentOpen) return
+      detailPane.innerHTML=''
+      const titleLab = document.createElement('label'); titleLab.textContent='Title'
+      const titleInput = document.createElement('input'); titleInput.type='text'; titleInput.value=currentOpen.title
+      const descLab = document.createElement('label'); descLab.textContent='Description'
+      const descInput = document.createElement('textarea'); descInput.rows=4; descInput.value=currentOpen.description||''
+
+      const statusLab = document.createElement('label'); statusLab.textContent='Status'
+      const statusSel = document.createElement('select'); ['pending','progress','done'].forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;o.selected=currentOpen.status===s;statusSel.appendChild(o)})
+
+      const catLab = document.createElement('label'); catLab.textContent='Category (single)'
+      const catSel = document.createElement('select')
+      const noneOpt = document.createElement('option'); noneOpt.value=''; noneOpt.textContent='— none —'; catSel.appendChild(noneOpt)
+      state.categories.forEach(c=>{const o=document.createElement('option'); o.value=c.name; o.textContent=c.name; if(currentOpen.category===c.name) o.selected=true; catSel.appendChild(o)})
+
+      const tagsLab = document.createElement('label'); tagsLab.textContent='Tags (copy stored on todo)'
+      const tagsWrap = document.createElement('div')
+      state.tags.forEach(tag=>{
+        const id = uid('t_')
+        const lbl = document.createElement('label'); lbl.style.display='block'
+        const cb = document.createElement('input'); cb.type='checkbox'; cb.dataset.tag=tag.name; if(currentOpen.tags && currentOpen.tags.includes(tag.name)) cb.checked=true
+        cb.addEventListener('change', ()=>{
+          // update currentOpen tags immediately
+          const name = cb.dataset.tag
+          if(cb.checked){ currentOpen.tags = Array.from(new Set([...(currentOpen.tags||[]), name])) }
+          else { currentOpen.tags = (currentOpen.tags||[]).filter(x=>x!==name) }
+        })
+        lbl.appendChild(cb); lbl.appendChild(document.createTextNode(' '+tag.name))
+        tagsWrap.appendChild(lbl)
+      })
+
+      // subtasks
+      const stLab = document.createElement('label'); stLab.textContent='Subtasks'
+      const stInput = document.createElement('input'); stInput.placeholder='New subtask'
+      const stAdd = document.createElement('button'); stAdd.textContent='Add'; stAdd.className='btn'
+      const stList = document.createElement('div'); stList.className='subtasks'
+
+      function refreshSubtasks(){ stList.innerHTML=''
+        (currentOpen.subtasks||[]).forEach(s=>{
+          const row = document.createElement('div'); row.className='subtask'
+          const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!s.done; cb.addEventListener('change',()=>{ s.done = cb.checked; saveState(); renderTodos(); refreshSubtasks() })
+          const txt = document.createElement('div'); txt.textContent = s.text; txt.style.flex='1'
+          const rem = document.createElement('button'); rem.textContent='x'; rem.className='btn'; rem.addEventListener('click',()=>{ currentOpen.subtasks = currentOpen.subtasks.filter(x=>x.id!==s.id); saveState(); renderTodos(); refreshSubtasks() })
+          row.appendChild(cb); row.appendChild(txt); row.appendChild(rem); stList.appendChild(row)
+        })
+      }
+      stAdd.addEventListener('click',()=>{
+        const v = stInput.value.trim(); if(!v) return; currentOpen.subtasks = currentOpen.subtasks||[]; currentOpen.subtasks.push({id:uid('s_'), text:v, done:false}); stInput.value=''; saveState(); renderTodos(); refreshSubtasks()
+      })
+
+      const saveBtn = document.createElement('button'); saveBtn.textContent='Save'; saveBtn.className='btn'; saveBtn.style.background='var(--accent)'; saveBtn.style.color='white'
+      saveBtn.addEventListener('click', ()=>{
+        currentOpen.title = titleInput.value.trim() || 'Untitled'
+        currentOpen.description = descInput.value
+        currentOpen.status = statusSel.value
+        currentOpen.category = catSel.value || null
+        // tags already synced by checkboxes
+        currentOpen.updatedAt = new Date().toISOString()
+        saveState(); renderTodos(); alert('Saved')
+      })
+
+      detailPane.appendChild(titleLab); detailPane.appendChild(titleInput);
+      detailPane.appendChild(descLab); detailPane.appendChild(descInput);
+      detailPane.appendChild(statusLab); detailPane.appendChild(statusSel);
+      detailPane.appendChild(catLab); detailPane.appendChild(catSel);
+      detailPane.appendChild(tagsLab); detailPane.appendChild(tagsWrap);
+      detailPane.appendChild(stLab); detailPane.appendChild(stInput); detailPane.appendChild(stAdd); detailPane.appendChild(stList);
+      refreshSubtasks();
+      detailPane.appendChild(document.createElement('div'));
+      detailPane.appendChild(saveBtn)
+    }
+
+    // --- Todo creation
+    $('#addTodoBtn').addEventListener('click', ()=>{
+      const title = $('#newTitle').value.trim(); if(!title) return alert('Enter a title')
+      const todo = {id:uid('todo_'), title, description:'', status:'pending', tags:[], category:null, subtasks:[], createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()}
+      state.todos.unshift(todo); saveState(); $('#newTitle').value=''; renderTodos(); openDetail(todo.id)
+    })
+
+    $('#filterStatus').addEventListener('change', renderTodos)
+
+    // --- Tags CRUD
+    function renderTags(){
+      const wrap = $('#tagsList'); wrap.innerHTML=''
+      state.tags.forEach(tag=>{
+        const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='8px 0'
+        const left = document.createElement('div'); left.textContent = tag.name
+        const right = document.createElement('div');
+        const edit = document.createElement('button'); edit.textContent='Edit'; edit.className='btn'; edit.addEventListener('click', ()=>{
+          const newName = prompt('Rename tag', tag.name); if(newName){ tag.name = newName.trim(); saveState(); renderTags(); renderTodos() }
+        })
+        const del = document.createElement('button'); del.textContent='Delete'; del.className='btn'; del.addEventListener('click', ()=>{
+          if(!confirm('Delete tag? This will not remove the tag text from existing todos.')) return
+          state.tags = state.tags.filter(t=>t.id!==tag.id); saveState(); renderTags()
+        })
+        right.appendChild(edit); right.appendChild(del); row.appendChild(left); row.appendChild(right)
+        wrap.appendChild(row)
+      })
+      if(state.tags.length===0) wrap.innerHTML='<div style="color:var(--muted);padding:8px">No tags</div>'
+    }
+    $('#createTag').addEventListener('click', ()=>{
+      const v = $('#tagName').value.trim(); if(!v) return
+      state.tags.push({id:uid('tag_'), name:v}); $('#tagName').value=''; saveState(); renderTags(); renderTodos()
+    })
+
+    // quick tag create from todo detail area
+    $('#createQuickTag').addEventListener('click', ()=>{ const v = $('#quickTagName').value.trim(); if(!v) return; state.tags.push({id:uid('tag_'), name:v}); $('#quickTagName').value=''; saveState(); renderTags(); renderTodos(); alert('Tag created') })
+
+    // --- Categories CRUD
+    function renderCategories(){
+      const wrap = $('#categoriesList'); wrap.innerHTML=''
+      state.categories.forEach(cat=>{
+        const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='8px 0'
+        const left = document.createElement('div'); left.textContent = cat.name
+        const right = document.createElement('div');
+        const edit = document.createElement('button'); edit.textContent='Edit'; edit.className='btn'; edit.addEventListener('click', ()=>{
+          const newName = prompt('Rename category', cat.name); if(newName){ cat.name = newName.trim(); saveState(); renderCategories(); renderTodos() }
+        })
+        const del = document.createElement('button'); del.textContent='Delete'; del.className='btn'; del.addEventListener('click', ()=>{
+          if(!confirm('Delete category? This will not remove the category name from existing todos.')) return
+          state.categories = state.categories.filter(c=>c.id!==cat.id); saveState(); renderCategories()
+        })
+        right.appendChild(edit); right.appendChild(del); row.appendChild(left); row.appendChild(right)
+        wrap.appendChild(row)
+      })
+      if(state.categories.length===0) wrap.innerHTML='<div style="color:var(--muted);padding:8px">No categories</div>'
+    }
+    $('#createCategory').addEventListener('click', ()=>{
+      const v = $('#categoryName').value.trim(); if(!v) return
+      state.categories.push({id:uid('cat_'), name:v}); $('#categoryName').value=''; saveState(); renderCategories(); renderTodos()
+    })
+
+    // --- Settings
+    function applySettings(){
+      document.documentElement.setAttribute('data-theme', state.settings.theme||'light')
+      document.documentElement.style.setProperty('--accent', state.settings.accent||'#6366f1')
+      $('#themeSelect').value = state.settings.theme
+      $('#accentColor').value = state.settings.accent
+    }
+    $('#saveSettings').addEventListener('click', ()=>{
+      state.settings.theme = $('#themeSelect').value
+      state.settings.accent = $('#accentColor').value
+      saveState(); applySettings(); alert('Settings saved')
+    })
+
+    // initial render
+    renderTags(); renderCategories(); renderTodos(); applySettings()
+
+    // expose for debugging
+    window._QT = {state, saveState}
+  </script>
+</body>
+</html>
